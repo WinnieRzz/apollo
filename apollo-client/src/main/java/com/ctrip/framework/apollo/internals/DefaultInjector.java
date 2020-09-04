@@ -7,12 +7,13 @@ import com.ctrip.framework.apollo.spi.ConfigRegistry;
 import com.ctrip.framework.apollo.spi.DefaultConfigFactory;
 import com.ctrip.framework.apollo.spi.DefaultConfigFactoryManager;
 import com.ctrip.framework.apollo.spi.DefaultConfigRegistry;
-import com.ctrip.framework.apollo.spring.config.ConfigPropertySourceFactory;
-import com.ctrip.framework.apollo.spring.property.PlaceholderHelper;
 import com.ctrip.framework.apollo.tracer.Tracer;
 import com.ctrip.framework.apollo.util.ConfigUtil;
+import com.ctrip.framework.apollo.util.factory.DefaultPropertiesFactory;
+import com.ctrip.framework.apollo.util.factory.PropertiesFactory;
 import com.ctrip.framework.apollo.util.http.HttpUtil;
 
+import com.ctrip.framework.apollo.util.yaml.YamlParser;
 import com.google.inject.AbstractModule;
 import com.google.inject.Guice;
 import com.google.inject.Singleton;
@@ -62,8 +63,8 @@ public class DefaultInjector implements Injector {
       bind(HttpUtil.class).in(Singleton.class);
       bind(ConfigServiceLocator.class).in(Singleton.class);
       bind(RemoteConfigLongPollService.class).in(Singleton.class);
-      bind(PlaceholderHelper.class).in(Singleton.class);
-      bind(ConfigPropertySourceFactory.class).in(Singleton.class);
+      bind(YamlParser.class).in(Singleton.class);
+      bind(PropertiesFactory.class).to(DefaultPropertiesFactory.class).in(Singleton.class);
     }
   }
 }

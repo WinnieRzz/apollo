@@ -4,18 +4,16 @@ import com.google.common.base.Strings;
 import com.google.common.collect.Sets;
 import java.util.Set;
 import java.util.Stack;
+import java.util.Objects;
+import org.springframework.beans.factory.BeanFactory;
+import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.beans.factory.config.BeanExpressionContext;
+import org.springframework.beans.factory.config.ConfigurableBeanFactory;
+import org.springframework.beans.factory.config.Scope;
 import org.springframework.util.StringUtils;
 
 /**
- * Extract keys from placeholder, e.g.
- * <ul>
- * <li>${some.key} => "some.key"</li>
- * <li>${some.key:${some.other.key:100}} => "some.key", "some.other.key"</li>
- * <li>${${some.key}} => "some.key"</li>
- * <li>${${some.key:other.key}} => "some.key"</li>
- * <li>${${some.key}:${another.key}} => "some.key", "another.key"</li>
- * <li>#{new java.text.SimpleDateFormat('${some.key}').parse('${another.key}')} => "some.key", "another.key"</li>
- * </ul>
+ * Placeholder helper functions.
  */
 public class PlaceholderHelper {
 
@@ -26,10 +24,49 @@ public class PlaceholderHelper {
   private static final String EXPRESSION_PREFIX = "#{";
   private static final String EXPRESSION_SUFFIX = "}";
 
+  /**
+   * Resolve placeholder property values, e.g.
+   * <br />
+   * <br />
+   * "${somePropertyValue}" -> "the actual property value"
+   */
+  public Object resolvePropertyValue(ConfigurableBeanFactory beanFactory, String beanName, String placeholder) {
+    // resolve string value
+    String strVal = beanFactory.resolveEmbeddedValue(placeholder);
+
+    BeanDefinition bd = (beanFactory.containsBean(beanName) ? beanFactory
+        .getMergedBeanDefinition(beanName) : null);
+
+    // resolve expressions like "#{systemProperties.myProp}"
+    return evaluateBeanDefinitionString(beanFactory, strVal, bd);
+  }
+
+  private Object evaluateBeanDefinitionString(ConfigurableBeanFactory beanFactory, String value,
+      BeanDefinition beanDefinition) {
+    if (beanFactory.getBeanExpressionResolver() == null) {
+      return value;
+    }
+    Scope scope = (beanDefinition != null ? beanFactory
+        .getRegisteredScope(beanDefinition.getScope()) : null);
+    return beanFactory.getBeanExpressionResolver()
+        .evaluate(value, new BeanExpressionContext(beanFactory, scope));
+  }
+
+  /**
+   * Extract keys from placeholder, e.g.
+   * <ul>
+   * <li>${some.key} => "some.key"</li>
+   * <li>${some.key:${some.other.key:100}} => "some.key", "some.other.key"</li>
+   * <li>${${some.key}} => "some.key"</li>
+   * <li>${${some.key:other.key}} => "some.key"</li>
+   * <li>${${some.key}:${another.key}} => "some.key", "another.key"</li>
+   * <li>#{new java.text.SimpleDateFormat('${some.key}').parse('${another.key}')} => "some.key", "another.key"</li>
+   * </ul>
+   */
   public Set<String> extractPlaceholderKeys(String propertyString) {
     Set<String> placeholderKeys = Sets.newHashSet();
 
-    if (!isNormalizedPlaceholder(propertyString) && !isExpressionWithPlaceholder(propertyString)) {
+    if (Strings.isNullOrEmpty(propertyString) || (!isNormalizedPlaceholder(propertyString) && !isExpressionWithPlaceholder(propertyString))) {
       return placeholderKeys;
     }
 
@@ -83,12 +120,12 @@ public class PlaceholderHelper {
   }
 
   private boolean isNormalizedPlaceholder(String propertyString) {
-    return propertyString.startsWith(PLACEHOLDER_PREFIX) && propertyString.endsWith(PLACEHOLDER_SUFFIX);
+    return propertyString.startsWith(PLACEHOLDER_PREFIX) && propertyString.contains(PLACEHOLDER_SUFFIX);
   }
 
   private boolean isExpressionWithPlaceholder(String propertyString) {
-    return propertyString.startsWith(EXPRESSION_PREFIX) && propertyString.endsWith(EXPRESSION_SUFFIX)
-        && propertyString.contains(PLACEHOLDER_PREFIX);
+    return propertyString.startsWith(EXPRESSION_PREFIX) && propertyString.contains(EXPRESSION_SUFFIX)
+        && propertyString.contains(PLACEHOLDER_PREFIX) && propertyString.contains(PLACEHOLDER_SUFFIX);
   }
 
   private String normalizeToPlaceholder(String strVal) {

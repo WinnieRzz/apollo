@@ -14,20 +14,20 @@ import java.lang.reflect.Type;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 /**
  * @author Jason Song(song_s@ctrip.com)
  */
 public class HttpUtil {
   private ConfigUtil m_configUtil;
-  private Gson gson;
+  private static final Gson GSON = new Gson();
 
   /**
    * Constructor.
    */
   public HttpUtil() {
     m_configUtil = ApolloInjector.getInstance(ConfigUtil.class);
-    gson = new Gson();
   }
 
   /**
@@ -42,7 +42,7 @@ public class HttpUtil {
     Function<String, T> convertResponse = new Function<String, T>() {
       @Override
       public T apply(String input) {
-        return gson.fromJson(input, responseType);
+        return GSON.fromJson(input, responseType);
       }
     };
 
@@ -61,7 +61,7 @@ public class HttpUtil {
     Function<String, T> convertResponse = new Function<String, T>() {
       @Override
       public T apply(String input) {
-        return gson.fromJson(input, responseType);
+        return GSON.fromJson(input, responseType);
       }
     };
 
@@ -77,6 +77,13 @@ public class HttpUtil {
       HttpURLConnection conn = (HttpURLConnection) new URL(httpRequest.getUrl()).openConnection();
 
       conn.setRequestMethod("GET");
+
+      Map<String, String> headers = httpRequest.getHeaders();
+      if (headers != null && headers.size() > 0) {
+        for (Map.Entry<String, String> entry : headers.entrySet()) {
+          conn.setRequestProperty(entry.getKey(), entry.getValue());
+        }
+      }
 
       int connectTimeout = httpRequest.getConnectTimeout();
       if (connectTimeout < 0) {
@@ -116,7 +123,12 @@ public class HttpUtil {
           }
         }
 
-        throw ex;
+        // 200 and 304 should not trigger IOException, thus we must throw the original exception out
+        if (statusCode == 200 || statusCode == 304) {
+          throw ex;
+        }
+        // for status codes like 404, IOException is expected when calling conn.getInputStream()
+        throw new ApolloConfigStatusCodeException(statusCode, ex);
       }
 
       if (statusCode == 200) {
@@ -126,6 +138,8 @@ public class HttpUtil {
       if (statusCode == 304) {
         return new HttpResponse<>(statusCode, null);
       }
+    } catch (ApolloConfigStatusCodeException ex) {
+      throw ex;
     } catch (Throwable ex) {
       throw new ApolloConfigException("Could not complete get operation", ex);
     } finally {
